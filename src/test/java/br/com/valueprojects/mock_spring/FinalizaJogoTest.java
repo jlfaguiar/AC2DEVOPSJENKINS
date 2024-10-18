@@ -15,19 +15,20 @@ import br.com.valueprojects.mock_spring.model.FinalizaJogo;
 import br.com.valueprojects.mock_spring.model.Jogo;
 import br.com.valueprojects.mock_spring.model.Participante;
 import br.com.valueprojects.mock_spring.model.Resultado;
-import br.com.valueprojects.mock_spring.notificacao.Notificacao;
+import br.com.valueprojects.mock_spring.notificacao.EmailNotificacao;
+import br.com.valueprojects.mock_spring.notificacao.SmsNotificacao;
 import infra.JogoDao;
 import infra.JogoDaoFalso;
 
 public class FinalizaJogoTest {
 
-    // Teste usando Mock para verificar se o jogo foi salvo antes da notificação
+    // Teste usando Mock para verificar se o jogo foi salvo antes do envio de Email
     @Test
     public void deveFinalizarJogosDaSemanaAnteriorEEnviarNotificacao() {
 
-        // Mocks para o JogoDao e Notificacao
+        // Mock para o JogoDao e EmailNotificacao
         JogoDao dao_mock = mock(JogoDao.class);
-        Notificacao notificacao_mock = mock(Notificacao.class);
+        EmailNotificacao email_mock = mock(EmailNotificacao.class);
 
         // Simulação de jogos da semana anterior
         Calendar antiga = Calendar.getInstance();
@@ -43,15 +44,15 @@ public class FinalizaJogoTest {
         when(dao_mock.emAndamento()).thenReturn(jogos_em_andamento);
 
         // Instância do objeto finalizador
-        FinalizaJogo finalizador = new FinalizaJogo(dao_mock, notificacao_mock);
+        FinalizaJogo finalizador = new FinalizaJogo(dao_mock, email_mock);
         finalizador.finaliza();
 
-        // Verifica se o jogo foi salvo antes de enviar a notificação
+        // Verifica se o jogo foi salvo antes de enviar o e-mail
         verify(dao_mock, times(1)).atualiza(jogo);
-        verify(notificacao_mock, times(1)).enviar(eq(vencedor.getNome()), eq("Você é o vencedor!"), anyString());
+        verify(email_mock, times(1)).enviar(eq(vencedor.getNome()), eq("Você é o vencedor!"), anyString());
 
-        // Garante que a notificação só foi enviada após a atualização
-        verifyNoMoreInteractions(notificacao_mock);
+        // Garante que o e-mail só foi enviado após a atualização
+        verifyNoMoreInteractions(email_mock);
     }
 
     // Teste usando Stub, onde um comportamento básico é simulado sem verificação detalhada
@@ -61,11 +62,12 @@ public class FinalizaJogoTest {
         // Criação de um stub para o JogoDao
         JogoDaoFalso dao_stub = new JogoDaoFalso();
 
-        // Simulação de uma implementação mínima de Notificacao (stub)
-        Notificacao notificacao_stub = new Notificacao() {
+        // Criação de um stub para SmsNotificacao (não usamos mocks, apenas um comportamento simulado)
+        SmsNotificacao sms_stub = new SmsNotificacao() {
             @Override
             public void enviar(String destinatario, String assunto, String mensagem) {
-                System.out.println("Stub de notificação: " + mensagem); // Apenas um print
+                // Simulação do envio de SMS
+                System.out.println("SMS enviado para " + destinatario + ": " + mensagem);
             }
         };
 
@@ -77,10 +79,10 @@ public class FinalizaJogoTest {
         Jogo jogo = new CriadorDeJogo().para("Jogo de Teste")
             .naData(antiga).resultado(vencedor, 10).constroi();
 
-        dao_stub.salva(jogo); // Salva o jogo usando o stub de JogoDao
+        dao_stub.salva(jogo); // Salvando o jogo no stub
 
-        // Instância do objeto finalizador com stub
-        FinalizaJogo finalizador = new FinalizaJogo(dao_stub, notificacao_stub);
+        // Instância do objeto finalizador usando o SmsNotificacao
+        FinalizaJogo finalizador = new FinalizaJogo(dao_stub, sms_stub);
         finalizador.finaliza();
 
         // Verifica se o jogo foi finalizado corretamente
@@ -95,8 +97,8 @@ public class FinalizaJogoTest {
         JogoDaoFalso dao_stub = new JogoDaoFalso();
         JogoDaoFalso dao_spy = spy(dao_stub); // Criação do spy a partir do stub
 
-        // Mock da notificação para simular o envio de mensagens
-        Notificacao notificacao_mock = mock(Notificacao.class);
+        // Spy para EmailNotificacao para monitorar chamadas reais
+        EmailNotificacao email_spy = spy(new EmailNotificacao());
 
         // Simulação de jogos da semana anterior
         Calendar antiga = Calendar.getInstance();
@@ -108,27 +110,27 @@ public class FinalizaJogoTest {
 
         dao_spy.salva(jogo); // Salvando o jogo no stub/spy
 
-        // Instância do objeto finalizador usando o spy e mock de notificação
-        FinalizaJogo finalizador = new FinalizaJogo(dao_spy, notificacao_mock);
+        // Instância do objeto finalizador usando o spy para EmailNotificacao
+        FinalizaJogo finalizador = new FinalizaJogo(dao_spy, email_spy);
         finalizador.finaliza();
 
-        // Verifica se o método 'atualiza' foi invocado pelo spy
+        // Verifica se o método 'atualiza' foi invocado pelo spy no DAO
         verify(dao_spy).atualiza(jogo);
 
         // Verifica se o jogo foi finalizado corretamente
         assertTrue(jogo.isFinalizado());
 
-        // Verifica se a notificação foi enviada
-        verify(notificacao_mock).enviar(eq(vencedor.getNome()), eq("Você é o vencedor!"), anyString());
+        // Verifica se o e-mail foi enviado
+        verify(email_spy).enviar(eq(vencedor.getNome()), eq("Você é o vencedor!"), anyString());
     }
 
     // Teste adicional usando Mock para verificar se o método 'atualiza' foi chamado corretamente
     @Test
     public void deveVerificarSeMetodoAtualizaFoiInvocado() {
 
-        // Mocks para JogoDao e Notificacao
+        // Mocks para JogoDao e EmailNotificacao
         JogoDao dao_mock = mock(JogoDao.class);
-        Notificacao notificacao_mock = mock(Notificacao.class);
+        EmailNotificacao email_mock = mock(EmailNotificacao.class);
 
         // Simulação de jogos da semana anterior
         Calendar antiga = Calendar.getInstance();
@@ -143,7 +145,7 @@ public class FinalizaJogoTest {
         when(dao_mock.emAndamento()).thenReturn(jogos_em_andamento);
 
         // Instância do objeto finalizador
-        FinalizaJogo finalizador = new FinalizaJogo(dao_mock, notificacao_mock);
+        FinalizaJogo finalizador = new FinalizaJogo(dao_mock, email_mock);
         finalizador.finaliza();
 
         // Verifica se o método 'atualiza' foi invocado para cada jogo
